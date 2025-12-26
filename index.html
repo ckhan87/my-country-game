@@ -78,25 +78,26 @@
             </div>
         </div>
 
-        <!-- Central Quiz -->
-        <div class="flex flex-col items-center gap-4">
-            <div id="quiz-card" class="glass p-8 rounded-[3rem] pointer-events-auto flex flex-col items-center shadow-2xl border-b-2 border-white/10 scale-110">
-                <div class="text-[10px] text-white/40 font-black uppercase mb-4 tracking-[0.3em]">Locate the Nation</div>
-                <div class="relative group">
-                    <div class="absolute -inset-4 bg-blue-500/30 blur-xl rounded-full opacity-50"></div>
-                    <img id="flag-img" src="" class="relative h-24 w-auto rounded-lg shadow-2xl mb-6 border border-white/20" alt="Flag">
-                </div>
-                <div id="target-name" class="text-white font-black text-2xl tracking-tight px-6 py-2 rounded-2xl bg-blue-500/10 border border-white/10 shadow-inner">---</div>
-            </div>
-        </div>
-
-        <!-- Footer -->
+        <!-- Footer Area -->
         <div class="flex justify-between items-end">
-            <div class="glass px-6 py-4 rounded-2xl text-white/50 text-[10px] max-w-[280px] leading-relaxed uppercase tracking-wider font-bold">
-                <span class="text-blue-400">Controls:</span> Click the <span class="text-white">White Markers</span>. Ocean locations are highlighted.
+            <!-- Left Side: Quiz Card (Moved to bottom left and resized smaller) -->
+            <div id="quiz-card" class="glass p-5 rounded-[2rem] pointer-events-auto flex flex-col items-center shadow-2xl border-b-2 border-white/10 min-w-[180px]">
+                <div class="text-[8px] text-white/40 font-black uppercase mb-3 tracking-[0.3em]">Locate the Nation</div>
+                <div class="relative group mb-3">
+                    <div class="absolute -inset-2 bg-blue-500/30 blur-lg rounded-full opacity-50"></div>
+                    <img id="flag-img" src="" class="relative h-16 w-auto rounded-md shadow-xl border border-white/20" alt="Flag">
+                </div>
+                <div id="target-name" class="text-white font-black text-lg tracking-tight px-4 py-1.5 rounded-xl bg-blue-500/10 border border-white/10 shadow-inner">---</div>
             </div>
-            <div id="streak-badge" class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-full font-black text-sm opacity-0 transition-all shadow-xl border border-white/20">
-                COMBO x<span id="streak-count">0</span> 🔥
+
+            <!-- Right Side: Stats & Info -->
+            <div class="flex flex-col items-end gap-3">
+                <div id="streak-badge" class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-full font-black text-sm opacity-0 transition-all shadow-xl border border-white/20">
+                    COMBO x<span id="streak-count">0</span> 🔥
+                </div>
+                <div class="glass px-5 py-3 rounded-2xl text-white/50 text-[8px] max-w-[200px] leading-tight uppercase tracking-wider font-bold pointer-events-auto">
+                    <span class="text-blue-400">Controls:</span> Drag Earth to rotate. Click <span class="text-white">White Markers</span>.
+                </div>
             </div>
         </div>
     </div>
