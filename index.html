@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoFlag World Explorer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap');
+        body { margin: 0; overflow: hidden; background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); font-family: 'Poppins', sans-serif; }
+        .glass { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        #feedback { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; transform: translate(-50%, 20px); }
+        #feedback.show { opacity: 1; transform: translate(-50%, 0); }
+        .timer-glow { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+    </style>
+</head>
+<body>
+
+    <!-- UI Layer -->
+    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
+        <!-- Top Stats -->
+        <div class="flex justify-between items-start">
+            <div class="glass p-4 rounded-2xl pointer-events-auto min-w-[200px]">
+                <h1 class="text-white font-black text-lg tracking-tight">GEO<span class="text-blue-400">FLAG</span></h1>
+                <div class="flex items-center gap-3 mt-2">
+                    <div class="bg-blue-500 h-2 rounded-full flex-1 overflow-hidden">
+                        <div id="timer-bar" class="h-full bg-white w-full transition-all duration-1000"></div>
+                    </div>
+                    <span id="timer-text" class="text-white font-mono font-bold">60s</span>
+                </div>
+            </div>
+            
+            <div class="glass p-4 rounded-2xl pointer-events-auto text-right">
+                <div class="text-[10px] text-blue-300 font-bold uppercase tracking-widest">Global Score</div>
+                <div id="score" class="text-3xl text-white font-black leading-none">0</div>
+            </div>
+        </div>
+
+        <!-- Central Quiz -->
+        <div class="flex flex-col items-center gap-4">
+            <div id="quiz-card" class="glass p-6 rounded-3xl pointer-events-auto flex flex-col items-center shadow-2xl border-b-4 border-blue-500/50">
+                <div class="text-[10px] text-white/50 font-bold uppercase mb-2 tracking-[0.2em]">Match this Flag</div>
+                <img id="flag-img" src="" class="h-24 w-auto rounded-lg shadow-lg mb-4 border-2 border-white/20" alt="Flag">
+                <div id="target-name" class="text-white font-bold text-xl tracking-tight">???</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-between items-end">
+            <div class="glass px-4 py-2 rounded-xl text-white/60 text-[10px] max-w-[200px]">
+                Drag to rotate globe. Click the markers to guess.
+            </div>
+            <div id="streak-badge" class="bg-orange-500 text-white px-4 py-2 rounded-full font-black text-sm opacity-0 transition-opacity">
+                STREAK: <span id="streak-count">0</span> 🔥
+            </div>
+        </div>
+    </div>
+
+    <div id="feedback" class="absolute top-1/2 left-1/2 z-20 text-white font-black text-4xl pointer-events-none drop-shadow-2xl"></div>
+
+    <!-- Game Over -->
+    <div id="game-over" class="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center hidden">
+        <div class="glass p-10 rounded-[3rem] text-center max-w-sm w-full border-t-4 border-blue-400">
+            <h2 class="text-white text-4xl font-black mb-2">TIME'S UP!</h2>
+            <div class="text-blue-400 text-6xl font-black my-6" id="final-score">0</div>
+            <p class="text-white/60 mb-8 font-medium">Your son is a geography pro!</p>
+            <button onclick="startGame()" class="w-full bg-blue-500 hover:bg-blue-400 text-white font-black py-4 rounded-2xl transition-all hover:scale-105 active:scale-95">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const countryData = [
+            { id: "us", name: "USA", lat: 37, lon: -95 },
+            { id: "br", name: "Brazil", lat: -14, lon: -51 },
+            { id: "au", name: "Australia", lat: -25, lon: 133 },
+            { id: "fr", name: "France", lat: 46, lon: 2 },
+            { id: "jp", name: "Japan", lat: 36, lon: 138 },
+            { id: "in", name: "India", lat: 20, lon: 78 },
+            { id: "gb", name: "UK", lat: 55, lon: -3 },
+            { id: "ca", name: "Canada", lat: 56, lon: -106 },
+            { id: "cn", name: "China", lat: 35, lon: 104 },
+            { id: "eg", name: "Egypt", lat: 26, lon: 30 },
+            { id: "za", name: "South Africa", lat: -30, lon: 24 },
+            { id: "ru", name: "Russia", lat: 61, lon: 105 },
+            { id: "mx", name: "Mexico", lat: 23, lon: -102 },
+            { id: "ar", name: "Argentina", lat: -38, lon: -63 },
+            { id: "th", name: "Thailand", lat: 15, lon: 100 },
+            { id: "it", name: "Italy", lat: 41, lon: 12 },
+            { id: "es", name: "Spain", lat: 40, lon: -3 },
+            { id: "tr", name: "Turkey", lat: 38, lon: 35 },
+            { id: "id", name: "Indonesia", lat: -0.7, lon: 113 },
+            { id: "sa", name: "Saudi Arabia", lat: 23, lon: 45 }
+        ];
+
+        let scene, camera, renderer, globe, markerGroup;
+        let score = 0, streak = 0, timeLeft = 60, gameActive = false, currentTarget = null;
+        let rotationSpeed = 0.002;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        // --- IMPROVED EARTH TEXTURE GENERATOR ---
+        function createEarthTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // Fill Ocean
+            ctx.fillStyle = '#1e293b'; // Dark blue
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw recognizable continents manually for the texture
+            ctx.fillStyle = '#334155'; // Greyish-blue land
+            
+            // Helper to draw rough shapes (Longitude -> X, Latitude -> Y)
+            function drawLand(coords) {
+                ctx.beginPath();
+                coords.forEach((p, i) => {
+                    const x = (p[0] + 180) * (canvas.width / 360);
+                    const y = (90 - p[1]) * (canvas.height / 180);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Simple polygons for global landmasses
+            // North America
+            drawLand([[-168, 70], [-55, 70], [-52, 10], [-100, 15], [-120, 30], [-168, 65]]);
+            // South America
+            drawLand([[-82, 12], [-35, -5], [-60, -55], [-80, -15]]);
+            // Eurasia
+            drawLand([[-10, 70], [170, 70], [145, 10], [120, 10], [80, 5], [40, 30], [-10, 40]]);
+            // Africa
+            drawLand([[-17, 35], [51, 15], [35, -35], [20, -35], [-10, 5]]);
+            // Australia
+            drawLand([[113, -10], [154, -10], [150, -40], [115, -40]]);
+            // Antarctica
+            drawLand([[-180, -60], [180, -60], [180, -90], [-180, -90]]);
+
+            // Add grid lines
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=128) { ctx.strokeRect(i, 0, 1, canvas.height); }
+            for(let i=0; i<canvas.height; i+=128) { ctx.strokeRect(0, i, canvas.width, 1); }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        // --- AUDIO ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playBeep(freq, type = 'sine', duration = 0.2) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        // --- INITIALIZATION ---
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 250;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambient);
+            const sun = new THREE.DirectionalLight(0xffffff, 1);
+            sun.position.set(5, 3, 5);
+            scene.add(sun);
+
+            // Create Globe
+            const earthGeom = new THREE.SphereGeometry(100, 64, 64);
+            const earthMat = new THREE.MeshPhongMaterial({
+                map: createEarthTexture(),
+                shininess: 5,
+                bumpScale: 1
+            });
+            globe = new THREE.Mesh(earthGeom, earthMat);
+            scene.add(globe);
+
+            markerGroup = new THREE.Group();
+            globe.add(markerGroup);
+
+            // Add Markers
+            countryData.forEach(c => {
+                const phi = (90 - c.lat) * (Math.PI / 180);
+                const theta = (c.lon + 180) * (Math.PI / 180);
+                const marker = new THREE.Mesh(
+                    new THREE.SphereGeometry(3, 16, 16),
+                    new THREE.MeshPhongMaterial({ color: 0x60a5fa, emissive: 0x1d4ed8 })
+                );
+                marker.position.set(
+                    -(101 * Math.sin(phi) * Math.cos(theta)),
+                    (101 * Math.cos(phi)),
+                    (101 * Math.sin(phi) * Math.sin(theta))
+                );
+                marker.userData = { country: c };
+                markerGroup.add(marker);
+            });
+
+            // Interactions
+            window.addEventListener('mousedown', (e) => { isDragging = true; previousMousePosition = { x: e.clientX, y: e.clientY }; });
+            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mousemove', handleDrag);
+            window.addEventListener('click', handleClick);
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            animate();
+            startGame();
+        }
+
+        function handleDrag(e) {
+            if (!isDragging) return;
+            const deltaMove = { x: e.clientX - previousMousePosition.x, y: e.clientY - previousMousePosition.y };
+            globe.rotation.y += deltaMove.x * 0.005;
+            globe.rotation.x += deltaMove.y * 0.005;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        }
+
+        function handleClick(e) {
+            if (!gameActive) return;
+            const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(markerGroup.children);
+
+            if (intersects.length > 0) {
+                const country = intersects[0].object.userData.country;
+                if (country.id === currentTarget.id) {
+                    onCorrect();
+                } else {
+                    onWrong();
+                }
+            }
+        }
+
+        function onCorrect() {
+            score += 10 + (streak * 5);
+            streak++;
+            playBeep(880);
+            showFeedback("PERFECT!", "text-green-400");
+            nextRound();
+        }
+
+        function onWrong() {
+            streak = 0;
+            playBeep(220, 'sawtooth');
+            showFeedback("WRONG!", "text-red-500");
+            updateUI();
+        }
+
+        function showFeedback(txt, cls) {
+            const el = document.getElementById('feedback');
+            el.textContent = txt;
+            el.className = `absolute top-1/2 left-1/2 z-20 font-black text-4xl pointer-events-none drop-shadow-2xl show ${cls}`;
+            setTimeout(() => el.classList.remove('show'), 800);
+        }
+
+        function nextRound() {
+            currentTarget = countryData[Math.floor(Math.random() * countryData.length)];
+            const flagUrl = `https://flagcdn.com/w320/${currentTarget.id}.png`;
+            document.getElementById('flag-img').src = flagUrl;
+            document.getElementById('target-name').textContent = "FIND THIS COUNTRY";
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('streak-count').textContent = streak;
+            document.getElementById('streak-badge').style.opacity = streak > 1 ? "1" : "0";
+            document.getElementById('timer-text').textContent = timeLeft + "s";
+            document.getElementById('timer-bar').style.width = (timeLeft / 60 * 100) + "%";
+        }
+
+        function startGame() {
+            score = 0; streak = 0; timeLeft = 60; gameActive = true;
+            document.getElementById('game-over').classList.add('hidden');
+            nextRound();
+            const timer = setInterval(() => {
+                if (!gameActive) { clearInterval(timer); return; }
+                timeLeft--;
+                updateUI();
+                if (timeLeft <= 0) { gameActive = false; endGame(); }
+            }, 1000);
+        }
+
+        function endGame() {
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('game-over').classList.remove('hidden');
+            playBeep(440, 'sine', 0.5);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isDragging && gameActive) globe.rotation.y += rotationSpeed;
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
